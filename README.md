@@ -15,54 +15,13 @@ Cross-modal retrieval ranks text for an image query or images for a text query. 
 
 ## Method overview
 
-The diagram follows the release code. The offline feature preparation in the first group comes from the paper. The launchers begin at the pre-extracted MAT features.
+[![ACoPSe framework with image and text encoders, attention-based fusion, clustering and prototype alignment, and modality-specific hash functions](docs/figures/acopse-overview.png)](docs/figures/acopse-overview.png)
 
-```mermaid
-flowchart TB
-    subgraph Data [Offline preparation described in the paper]
-        Image["Images"] --> ImageFeatures["AlexNet image features"]
-        Text["Text tags"] --> TextFeatures["Bag-of-words text features"]
-    end
+*Overview of ACoPSe as described in the paper.* The release launchers start from pre-extracted MAT features.
 
-    subgraph Generator [Shared-code training on paired features]
-        ImageFeatures --> ImageLatent["Image encoder → VI"]
-        TextFeatures --> TextLatent["Text encoder → VT"]
-        ImageFeatures --> Fusion["Concatenate descriptors → self-attention → joint latent"]
-        TextFeatures --> Fusion
+The release uses two Transformer layers with two attention heads each, a one-way CP1 prototype loss, and feature reconstruction, affinity matching, and quantization losses in the shared-code generator. After each generator epoch, the two modality-specific hash networks are trained jointly on the shared binary targets, with a loss on paired outputs. At evaluation, each network encodes its own modality independently.
 
-        ImageLatent --> Clustering["Concatenate VI and VT → cosine K-means"]
-        TextLatent --> Clustering
-        Clustering -->|"Pseudo-labels by sample index"| Prototypes["Mini-batch image and text prototypes"]
-        ImageLatent --> Prototypes
-        TextLatent --> Prototypes
-        Prototypes --> PrototypeLoss["One-way CP1 prototype loss"]
-
-        ImageLatent --> FusionLoss["Modality-to-joint contrastive loss"]
-        TextLatent --> FusionLoss
-        Fusion --> FusionLoss
-
-        ImageLatent --> Shared["Three hash projections → shared hash → sign"]
-        TextLatent --> Shared
-        Fusion --> Shared
-    end
-
-    subgraph Retrieval [Modality-specific hash learning and retrieval]
-        ImageFeatures -. Training features .-> ImageHash["Normalize → image hash MLP"]
-        TextFeatures -. Training features .-> TextHash["Normalize → text hash MLP"]
-        Shared -. Training target .-> ImageHash
-        Shared -. Training target .-> TextHash
-        EvaluationFeatures["Query and database MAT features"] -->|"Image rows"| ImageHash
-        EvaluationFeatures -->|"Text rows"| TextHash
-        ImageHash --> Ranking["Sign → bidirectional Hamming ranking"]
-        TextHash --> Ranking
-        Ranking --> MAP["MAP@5000"]
-        Labels["Query and database labels"] --> MAP
-    end
-```
-
-The joint encoder uses two Transformer layers with two attention heads each. The shared-code generator also uses feature reconstruction, affinity matching, and quantization losses. After each generator epoch, the two modality-specific hash networks are fitted jointly to the shared binary targets, with a loss on paired outputs. At evaluation, each network encodes its own modality independently.
-
-The paper specifies four attention heads, bidirectional prototype terms with within- and cross-modality negatives, and sequential training stages in §4.3, Eq. 4, and Algorithm 1. The release uses the two-head encoder and one-way prototype loss shown above and alternates generator and hash-function updates each epoch. The validation results below apply to this implementation.
+The paper specifies four attention heads, bidirectional prototype terms with within- and cross-modality negatives, and sequential training stages in §4.3, Eq. 4, and Algorithm 1. The validation results below apply to the release implementation.
 
 ## Repository structure
 
